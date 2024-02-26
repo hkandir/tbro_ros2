@@ -1,34 +1,27 @@
+"""
+Transformer Based Radar Odometry ROS node
+"""
+
+# generic
 import rclpy
 from rclpy.node import Node
 
 # replace this with dca1000_device/msg/MimoMsg
+# ros messages
 from std_msgs.msg import String
 from dca1000_device.msg import MimoMsg
 
-# Custom dataset for TBRO
-# from mimo_dataset import MimoDataset
+# pytorch
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader
 
 
-class MimoDataset(Dataset):
-    def __init__(self):
-        super(MimoDataset, self).__init__()
-        self.image_list = []
+# Custom dataset for TBRO
+from .mimo_dataset import MimoDataset
 
-    def load_img(self, new_image):
-        if len(self.image_list) > 1:
-            self.image_list.pop(0)
-        self.image_list.append(new_image)
-
-    def __len__(self) -> int:
-        return len(self.image_list)
-
-    def __getitem__(self, index):
-        image = torch.FloatTensor(self.image_list[index])
-        lable = ...
-
-        return image, lable
+# local
+from .deep_ro_enc_only import DeepROEncOnly
+from .parameters import Parameters
 
 
 class TbroSubscriber(Node):
@@ -38,6 +31,11 @@ class TbroSubscriber(Node):
         self.controller_period = 0.1
         self.init_flag = False  # False if not initialzied
         self.heatmap_buffer = []
+        self.data_set = MimoDataset()
+        self.args = Parameters()
+        self.device = torch.device("cpu")
+        self.model = DeepROEncOnly(self.args)
+        self.model.to(self.device)
 
         # heatmap subscriber
         self.heatmap_subcriber = self.create_subscription(
@@ -47,10 +45,8 @@ class TbroSubscriber(Node):
         # Timer callback
         self.timer = self.create_timer(self.controller_period, self.timer_callback)
 
-        self.data_set = MimoDataset()
-
     def listener_callback(self, msg):
-        self.get_logger().debug('I got heatmap msg: "%s"' % msg)
+        # self.get_logger().info('I got heatmap image: "%s"' % msg.image)
         # inti the system when first ever message is received
         if not self.init_flag:
             self.data_set.load_img(msg.image)
@@ -68,8 +64,19 @@ class TbroSubscriber(Node):
 
     def process_data(self):
         self.get_logger().info("Processing frames")
-        self.get_logger().info("Zero: ".format(self.data_set.__getitem__(0)))
-        self.get_logger().info("One:  ".format(self.data_set.__getitem__(1)))
+        # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
+        # self.get_logger().info("One: (size): {}".format(self.data_set.__getitem__(1)))
+
+        loader = DataLoader(
+            self.data_set,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+            num_workers=4,
+            drop_last=False,
+        )
+
+        for i, data in enumerate(loader):
+            self.get_logger().info("index, data: {},{}".format(i, data))
 
     def run_once(self):
         if self.init_flag:

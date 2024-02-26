@@ -1,5 +1,12 @@
+"""
+Povides custom pytorch data class for TBRO ROS node
+"""
+
+import logging
+import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import ToTensor
+
+logging.basicConfig(level=logging.INFO)
 
 
 class MimoDataset(Dataset):
@@ -8,6 +15,7 @@ class MimoDataset(Dataset):
         self.image_list = []
 
     def load_img(self, new_image):
+        logging.debug("mimo:loading new_image:size: {}".format(len(new_image)))
         if len(self.image_list) > 1:
             self.image_list.pop(0)
         self.image_list.append(new_image)
@@ -16,7 +24,7 @@ class MimoDataset(Dataset):
         return len(self.image_list)
 
     def __getitem__(self, index):
-        image = self.transform(self.image_list[index])
+        image = torch.FloatTensor(self.image_list[index])
         lable = ...
 
         return image, lable
