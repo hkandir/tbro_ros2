@@ -32,6 +32,13 @@ class KramerOriginal(pl.LightningModule):
         )
         self.linear_3 = nn.Linear(1024, 6)
 
+        self.load_weights(pretrained_cnn_path)
+
+    def load_weights(self, path: str):
+        model_dict = torch.load(path, map_location="cpu")
+        # print(self.state_dict())
+        self.load_state_dict(model_dict)
+
     def make_pairs(self, radar_images: List[torch.tensor]) -> torch.tensor:
         # TODO: Is torch.stack necessary? How does torch stack compare with torch cat?
         # TODO: Test with and without stack, print shape?

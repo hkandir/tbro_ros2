@@ -36,7 +36,10 @@ class TbroSubscriber(Node):
         self.args = Parameters()
         self.device = torch.device("cpu")
         # self.model = DeepROEncOnly(self.args)
-        self.model = KramerOriginal(self.args)
+        self.model = KramerOriginal(
+            self.args,
+            "//home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
+        )
         # self.model.run
         self.model.to(self.device)
 
@@ -75,10 +78,15 @@ class TbroSubscriber(Node):
         # print("tmp: {}".format(tmp))
         # print("tmp.len: ", tmp.__len__())
 
-        odom = self.model.forward(
-            [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
-        )
+        with torch.no_grad():
+            odom = self.model.forward(
+                [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
+            )
+
         print("odom: ", odom)
+
+        # TODO: publish odom here
+
         # print("image type: {}".format(type(self.data_set.__getitem__(0)[0])))
 
         # loader = DataLoader(
