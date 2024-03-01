@@ -20,8 +20,9 @@ from torch.utils.data import DataLoader
 from .mimo_dataset import MimoDataset
 
 # local
-from .deep_ro_enc_only import DeepROEncOnly
+# from .models.deep_ro_enc_only import DeepROEncOnly
 from .parameters import Parameters
+from .models.kremer_original import KramerOriginal
 
 
 class TbroSubscriber(Node):
@@ -34,7 +35,9 @@ class TbroSubscriber(Node):
         self.data_set = MimoDataset()
         self.args = Parameters()
         self.device = torch.device("cpu")
-        self.model = DeepROEncOnly(self.args)
+        # self.model = DeepROEncOnly(self.args)
+        self.model = KramerOriginal(self.args)
+        # self.model.run
         self.model.to(self.device)
 
         # heatmap subscriber
@@ -46,14 +49,14 @@ class TbroSubscriber(Node):
         self.timer = self.create_timer(self.controller_period, self.timer_callback)
 
     def listener_callback(self, msg):
-        # self.get_logger().info('I got heatmap image: "%s"' % msg.image)
+        # self.get_logger().info('I got heatmap image: "%s"' % msg)
         # inti the system when first ever message is received
         if not self.init_flag:
-            self.data_set.load_img(msg.image)
+            self.data_set.load_img(msg)
             if self.data_set.__len__() == 2:
                 self.init_flag = True
         else:
-            self.heatmap_buffer.append(msg.image)
+            self.heatmap_buffer.append(msg)
 
     # Timer callback function
     def timer_callback(self):
@@ -67,16 +70,22 @@ class TbroSubscriber(Node):
         # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
         # self.get_logger().info("One: (size): {}".format(self.data_set.__getitem__(1)))
 
-        loader = DataLoader(
-            self.data_set,
-            batch_size=self.args.batch_size,
-            shuffle=True,
-            num_workers=4,
-            drop_last=False,
+        odom = self.model.forward(
+            [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
         )
 
-        for i, data in enumerate(loader):
-            self.get_logger().info("index, data: {},{}".format(i, data))
+        # print("image type: {}".format(type(self.data_set.__getitem__(0)[0])))
+
+        # loader = DataLoader(
+        #     self.data_set,
+        #     batch_size=self.args.batch_size,
+        #     shuffle=True,
+        #     num_workers=4,
+        #     drop_last=False,
+        # )
+
+        # for i, data in enumerate(loader):
+        #     self.get_logger().info("index, data: {},{}".format(i, data))
 
     def run_once(self):
         if self.init_flag:
