@@ -35,13 +35,22 @@ class KramerOriginal(pl.LightningModule):
     def make_pairs(self, radar_images: List[torch.tensor]) -> torch.tensor:
         # TODO: Is torch.stack necessary? How does torch stack compare with torch cat?
         # TODO: Test with and without stack, print shape?
-        tensor = torch.stack(radar_images, dim=1)
+        uns_list = []
+        for element in radar_images:
+            uns_list.append(element.unsqueeze(0))
+            print("elemnt size:", element.size())
+
+        # tensor = torch.stack(radar_images, dim=1)
+        tensor = torch.stack(uns_list, dim=1)
         return torch.cat([tensor[:, :-1], tensor[:, 1:]], dim=2)
 
     def forward_cnn(self, pairs: torch.Tensor) -> torch.Tensor:
         # batch_size, sequence_length, channels = 2, height = 64, width = 128, depth = 64
+        print("torch version: {}".format(torch.__version__))
         print("pairs.size() = {}".format(pairs.size()))
+        # pairs = pairs.unsqueeze(0)
         batch_size, time_steps, C, H, W, D = pairs.size()
+
         # print('Batch_Size: ' + str(batch_size) + ' Seq Len: ' + str(time_steps) + ' Tensor Channels: '+str(C)+ ' (H,W,D)'+ '(' +str(H)+','+str(W)+','+str(D)+')')
         c_in = pairs.view(batch_size * time_steps, C, H, W, D)
         encoded_radar_images = self.encoder(c_in)

@@ -31,7 +31,7 @@ class TbroSubscriber(Node):
         super().__init__("tbro_subscriber")
         self.controller_period = 0.1
         self.init_flag = False  # False if not initialzied
-        self.heatmap_buffer = []
+        self.msg_buffer = []
         self.data_set = MimoDataset()
         self.args = Parameters()
         self.device = torch.device("cpu")
@@ -48,6 +48,8 @@ class TbroSubscriber(Node):
         # Timer callback
         self.timer = self.create_timer(self.controller_period, self.timer_callback)
 
+        # TODO: Check if I can append first two messages here instad of in listenter_callback
+
     def listener_callback(self, msg):
         # self.get_logger().info('I got heatmap image: "%s"' % msg)
         # inti the system when first ever message is received
@@ -56,7 +58,7 @@ class TbroSubscriber(Node):
             if self.data_set.__len__() == 2:
                 self.init_flag = True
         else:
-            self.heatmap_buffer.append(msg)
+            self.msg_buffer.append(msg)
 
     # Timer callback function
     def timer_callback(self):
@@ -69,11 +71,14 @@ class TbroSubscriber(Node):
         self.get_logger().info("Processing frames")
         # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
         # self.get_logger().info("One: (size): {}".format(self.data_set.__getitem__(1)))
+        tmp = [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
+        # print("tmp: {}".format(tmp))
+        # print("tmp.len: ", tmp.__len__())
 
         odom = self.model.forward(
             [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
         )
-
+        print("odom: ", odom)
         # print("image type: {}".format(type(self.data_set.__getitem__(0)[0])))
 
         # loader = DataLoader(
@@ -90,8 +95,8 @@ class TbroSubscriber(Node):
     def run_once(self):
         if self.init_flag:
             # TODO: This will miss the first message. Fix it.
-            if len(self.heatmap_buffer) > 0:
-                self.data_set.load_img(self.heatmap_buffer.pop(0))
+            if len(self.msg_buffer) > 0:
+                self.data_set.load_img(self.msg_buffer.pop(0))
                 self.process_data()
 
 
