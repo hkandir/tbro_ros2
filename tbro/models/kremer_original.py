@@ -45,7 +45,7 @@ class KramerOriginal(pl.LightningModule):
         uns_list = []
         for element in radar_images:
             uns_list.append(element.unsqueeze(0))
-            print("elemnt size:", element.size())
+            # print("elemnt size:", element.size())
 
         # tensor = torch.stack(radar_images, dim=1)
         tensor = torch.stack(uns_list, dim=1)
@@ -53,9 +53,6 @@ class KramerOriginal(pl.LightningModule):
 
     def forward_cnn(self, pairs: torch.Tensor) -> torch.Tensor:
         # batch_size, sequence_length, channels = 2, height = 64, width = 128, depth = 64
-        print("torch version: {}".format(torch.__version__))
-        print("pairs.size() = {}".format(pairs.size()))
-        # pairs = pairs.unsqueeze(0)
         batch_size, time_steps, C, H, W, D = pairs.size()
 
         # print('Batch_Size: ' + str(batch_size) + ' Seq Len: ' + str(time_steps) + ' Tensor Channels: '+str(C)+ ' (H,W,D)'+ '(' +str(H)+','+str(W)+','+str(D)+')')

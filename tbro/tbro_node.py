@@ -10,6 +10,7 @@ from rclpy.node import Node
 # ros messages
 from std_msgs.msg import String
 from dca1000_device.msg import MimoMsg
+from nav_msgs.msg import Odometry
 
 # pytorch
 import torch
@@ -50,6 +51,7 @@ class TbroSubscriber(Node):
         self.heatmap_subcriber  # prevent unused variable warning
         # Timer callback
         self.timer = self.create_timer(self.controller_period, self.timer_callback)
+        self.odometry_publisher = self.create_publisher(Odometry, "tbro_odometry", 10)
 
         # TODO: Check if I can append first two messages here instad of in listenter_callback
 
@@ -71,10 +73,10 @@ class TbroSubscriber(Node):
         self.run_once()
 
     def process_data(self):
-        self.get_logger().info("Processing frames")
+        self.get_logger().debug("Processing frames")
         # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
         # self.get_logger().info("One: (size): {}".format(self.data_set.__getitem__(1)))
-        tmp = [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
+        # tmp = [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
         # print("tmp: {}".format(tmp))
         # print("tmp.len: ", tmp.__len__())
 
@@ -83,10 +85,21 @@ class TbroSubscriber(Node):
                 [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
             )
 
-        print("odom: ", odom)
+        odom_msg = Odometry()
+        odom_msg.header.stamp = self.get_clock().now().to_msg()
+        odom_msg.header.frame_id = "world"
+        odom_msg.child_frame_id = "imu_link_enu"
+        odom_msg.pose.pose.position.x = float(odom[0][0])
+        odom_msg.pose.pose.position.y = float(odom[0][1])
+        odom_msg.pose.pose.position.z = float(odom[0][2])
+        odom_msg.pose.pose.orientation.x = float(odom[0][3])
+        odom_msg.pose.pose.orientation.y = float(odom[0][4])
+        odom_msg.pose.pose.orientation.z = float(odom[0][5])
+        odom_msg.pose.pose.orientation.w = float(1.0)
 
-        # TODO: publish odom here
+        print("Publishing pose: ", odom_msg.pose.pose)
 
+        self.odometry_publisher.publish(odom_msg)
         # print("image type: {}".format(type(self.data_set.__getitem__(0)[0])))
 
         # loader = DataLoader(

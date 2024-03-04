@@ -103,7 +103,7 @@ class ThreeDSample(nn.Module):
 # TODO: make this not global
 im_coords = None
 im_points = None
-verbose_debug = True
+verbose_debug = False
 sampler = ThreeDSample()
 
 
