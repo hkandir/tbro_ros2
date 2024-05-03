@@ -1,0 +1,50 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+box "ROS Bag" #AliceBlue
+participant Pub
+end box
+
+box "TBRO Node" #LightSkyBlue
+participant Sub
+participant Process
+end box
+
+box "LIO-SAM" #LightSkyBlue
+participant LIOSub
+participant LIOProcess
+end box 
+
+box "ROS Env" #AliceBlue
+participant Nodes
+end box
+
+Pub -> Sub : Heat\nMap
+Pub -> LIOSub : IMU
+Sub -> Sub : Queue heat\nmaps
+activate Sub
+deactivate Sub
+
+note over Process
+Save previous map
+end note
+
+Process -> Process : Get new message\nfrom queue
+
+note over Process
+Process messages
+via
+ML model
+end note
+activate Process
+deactivate Process
+
+Process -> LIOSub : TBRO Odometry
+LIOSub -> LIOProcess : Heat Map and IMU
+
+activate LIOProcess
+deactivate LIOProcess
+
+LIOProcess -> Nodes :Impoved\nOdomentry
+@enduml
