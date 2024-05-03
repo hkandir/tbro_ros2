@@ -43,7 +43,7 @@ class TbroSubscriber(Node):
         # self.model = DeepROEncOnly(self.args)
         self.model = KramerOriginal(
             self.args,
-            "//home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
+            "/home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
         )
         # self.model.run
         self.model.to(self.device)

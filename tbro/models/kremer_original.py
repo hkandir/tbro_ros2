@@ -35,9 +35,10 @@ class KramerOriginal(pl.LightningModule):
         self.load_weights(pretrained_cnn_path)
 
     def load_weights(self, path: str):
-        model_dict = torch.load(path, map_location="cpu")
-        # print(self.state_dict())
-        self.load_state_dict(model_dict)
+        if path:
+            model_dict = torch.load(path, map_location="cpu")
+            # print(self.state_dict())
+            self.load_state_dict(model_dict)
 
     def make_pairs(self, radar_images: List[torch.tensor]) -> torch.tensor:
         # TODO: Is torch.stack necessary? How does torch stack compare with torch cat?
