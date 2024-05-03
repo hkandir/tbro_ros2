@@ -1,0 +1,34 @@
+@startuml
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+
+box "ROS Bag"
+participant Pub
+end box
+
+box "TBRO Node"
+participant Sub
+participant Process
+end box
+
+Pub -> Sub : Mimo\nMsg
+Sub -> Sub : Queue heat\nmaps
+activate Sub
+deactivate Sub
+
+note over Process
+Save previous map
+end note
+
+Process -> Process : Get new message\nfrom queue
+
+note over Process
+Process messages
+via
+ML model
+end note
+activate Process
+deactivate Process
+
+Process -> Odom : TBRO Odometry
+@enduml
