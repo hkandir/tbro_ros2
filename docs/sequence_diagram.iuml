@@ -2,13 +2,17 @@
 skinparam ParticipantPadding 20
 skinparam BoxPadding 10
 
-box "ROS Bag"
+box "ROS Bag" #AliceBlue
 participant Pub
 end box
 
-box "TBRO Node"
+box "TBRO Node" #LightSkyBlue
 participant Sub
 participant Process
+end box
+
+box "ROS Env" #AliceBlue
+participant Nodes
 end box
 
 Pub -> Sub : Mimo\nMsg
@@ -30,5 +34,5 @@ end note
 activate Process
 deactivate Process
 
-Process -> Odom : TBRO Odometry
+Process -> Nodes : TBRO Odometry
 @enduml
