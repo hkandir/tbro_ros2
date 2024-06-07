@@ -96,6 +96,10 @@ class TbroSubscriber(Node):
         self.tbro_odometrty[4] += float(odom[0][4])
         self.tbro_odometrty[5] += float(odom[0][5])
 
+        # print(
+        #     f"[{float(odom[0][0])}, {float(odom[0][1])}, {float(odom[0][2])}, {float(odom[0][3])}, {float(odom[0][4])}, {float(odom[0][5])}]"
+        # )
+
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.header.frame_id = "world"
