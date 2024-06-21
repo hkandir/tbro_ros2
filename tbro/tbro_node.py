@@ -8,6 +8,7 @@ from rclpy.node import Node
 import math
 import numpy as np
 from tf_transformations import quaternion_from_euler
+import scipy.spatial.transform as tf
 
 # replace this with dca1000_device/msg/MimoMsg
 # ros messages
@@ -43,7 +44,10 @@ class TbroSubscriber(Node):
         # self.model = DeepROEncOnly(self.args)
         self.model = KramerOriginal(
             self.args,
-            "/home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
+            # "/home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
+            # "/home/parallels/radar/models/motion_only_epoch_25_batch_10_lr_1e-05_tbro_test_batch.model",
+            # "/home/parallels/radar/models/no_motion_epoch_10_batch_4_lr_1e-05_test_batch.model",
+            "/home/parallels/radar/models/second_motion_only_epoch_50_batch_10_lr_1e-05_tbro_test_batch.model",
         )
         # self.model.run
         self.model.to(self.device)
@@ -76,6 +80,65 @@ class TbroSubscriber(Node):
         self.get_logger().debug("Running tbro...")
         self.run_once()
 
+    def to_transform_torch(
+        self, positions: torch.Tensor, orientations: torch.Tensor
+    ) -> torch.Tensor:
+        batch_size = positions.shape[0]
+        seq_len = positions.shape[1]
+
+        poses_mat = torch.zeros(
+            batch_size, seq_len, 4, 4, dtype=positions.dtype, device=positions.device
+        )
+
+        poses_mat[:, :, 3, 3] += 1
+        poses_mat[:, :, :3, 3] += positions
+        for i, j in enumerate(orientations):
+            for k, h in enumerate(j):
+                rot_mat = tf.Rotation.from_euler("xyz", h.tolist())
+                poses_mat[i, k, :3, :3] += torch.tensor(
+                    rot_mat.as_matrix(), device=positions.device
+                )
+        return poses_mat
+    
+    # modifiy this function to transform odom by using two matrix
+    # body frame word frame, transform trees
+    def odometry_to_track(self, poses_mat: torch.Tensor) -> torch.Tensor:
+        # Shape (batch_size, sequence_length, 6dof (xyz,rpq))
+        if len(poses_mat.shape) == 4:
+            batch_size = poses_mat.shape[0]
+            seq_len = poses_mat.shape[1]
+
+            first_pose = torch.tile(torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(0), (batch_size, 1, 1))
+
+            track = [first_pose]
+            start_index = 1
+
+            for i in range(start_index, seq_len):
+                pose = poses_mat[:,i]
+                prev = track[-1]
+
+                track.append(torch.matmul(prev,pose))
+
+            track = torch.stack(track, dim=1)
+        if len(poses_mat.shape) == 3:
+            print('Track without batching')
+            seq_len = poses_mat.shape[0]
+
+            first_pose = torch.tile(torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(0), (1, 1))
+
+            track = [first_pose]
+            start_index = 1
+
+            for i in range(start_index, seq_len):
+                pose = poses_mat[i]
+                prev = track[-1]
+
+                track.append(torch.matmul(prev,pose))
+
+            track = torch.stack(track, dim=1)
+            print(track.shape)
+        return track
+
     def process_data(self):
         self.get_logger().debug("Processing frames")
         # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
@@ -88,17 +151,17 @@ class TbroSubscriber(Node):
             odom = self.model.forward(
                 [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
             )
+        
+        self.odom_matrix = self.to_transform_torch(odom[;,3;], odom[;,;3])
 
-        self.tbro_odometrty[0] += float(odom[0][0])
-        self.tbro_odometrty[1] += float(odom[0][1])
-        self.tbro_odometrty[2] += float(odom[0][2])
-        self.tbro_odometrty[3] += float(odom[0][3])
-        self.tbro_odometrty[4] += float(odom[0][4])
-        self.tbro_odometrty[5] += float(odom[0][5])
+        # self.tbro_odometrty[0] += float(odom[0][0])
+        # self.tbro_odometrty[1] += float(odom[0][1])
+        # self.tbro_odometrty[2] += float(odom[0][2])
+        # self.tbro_odometrty[3] += float(odom[0][3])
+        # self.tbro_odometrty[4] += float(odom[0][4])
+        # self.tbro_odometrty[5] += float(odom[0][5])
 
-        # print(
-        #     f"[{float(odom[0][0])}, {float(odom[0][1])}, {float(odom[0][2])}, {float(odom[0][3])}, {float(odom[0][4])}, {float(odom[0][5])}]"
-        # )
+        # print(f'[{float(odom[0][0])}, {float(odom[0][1])}, {float(odom[0][2])}, {float(odom[0][3])}, {float(odom[0][4])}, {float(odom[0][5])}]')
 
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
