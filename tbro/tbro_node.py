@@ -34,20 +34,20 @@ class TbroSubscriber(Node):
 
     def __init__(self):
         super().__init__("tbro_subscriber")
-        self.controller_period = 0.01
+        self.controller_period = 0.1
         self.init_flag = False  # False if not initialzied
         self.msg_buffer = []
         self.data_set = MimoDataset()
-        self.tbro_odometrty = np.zeros(6)
+        self.pose = np.zeros(6)
         self.args = Parameters()
         self.device = torch.device("cpu")
         # self.model = DeepROEncOnly(self.args)
         self.model = KramerOriginal(
             self.args,
-            # "/home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
+            "/home/parallels/radar/models/epoch_25_batch_16_lr_1e-05_tbro_test_batch.model",
             # "/home/parallels/radar/models/motion_only_epoch_25_batch_10_lr_1e-05_tbro_test_batch.model",
             # "/home/parallels/radar/models/no_motion_epoch_10_batch_4_lr_1e-05_test_batch.model",
-            "/home/parallels/radar/models/second_motion_only_epoch_50_batch_10_lr_1e-05_tbro_test_batch.model",
+            # "/home/parallels/radar/models/second_motion_only_epoch_50_batch_10_lr_1e-05_tbro_test_batch.model",
         )
         # self.model.run
         self.model.to(self.device)
@@ -56,6 +56,7 @@ class TbroSubscriber(Node):
         self.heatmap_subcriber = self.create_subscription(
             MimoMsg, "/cascade/heatmap", self.listener_callback, 10
         )
+
         self.heatmap_subcriber  # prevent unused variable warning
         # Timer callback
         self.timer = self.create_timer(self.controller_period, self.timer_callback)
@@ -99,7 +100,7 @@ class TbroSubscriber(Node):
                     rot_mat.as_matrix(), device=positions.device
                 )
         return poses_mat
-    
+
     # modifiy this function to transform odom by using two matrix
     # body frame word frame, transform trees
     def odometry_to_track(self, poses_mat: torch.Tensor) -> torch.Tensor:
@@ -108,23 +109,33 @@ class TbroSubscriber(Node):
             batch_size = poses_mat.shape[0]
             seq_len = poses_mat.shape[1]
 
-            first_pose = torch.tile(torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(0), (batch_size, 1, 1))
+            first_pose = torch.tile(
+                torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(
+                    0
+                ),
+                (batch_size, 1, 1),
+            )
 
             track = [first_pose]
             start_index = 1
 
             for i in range(start_index, seq_len):
-                pose = poses_mat[:,i]
+                pose = poses_mat[:, i]
                 prev = track[-1]
 
-                track.append(torch.matmul(prev,pose))
+                track.append(torch.matmul(prev, pose))
 
             track = torch.stack(track, dim=1)
         if len(poses_mat.shape) == 3:
-            print('Track without batching')
+            print("Track without batching")
             seq_len = poses_mat.shape[0]
 
-            first_pose = torch.tile(torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(0), (1, 1))
+            first_pose = torch.tile(
+                torch.eye(4, dtype=poses_mat.dtype, device=poses_mat.device).unsqueeze(
+                    0
+                ),
+                (1, 1),
+            )
 
             track = [first_pose]
             start_index = 1
@@ -133,68 +144,97 @@ class TbroSubscriber(Node):
                 pose = poses_mat[i]
                 prev = track[-1]
 
-                track.append(torch.matmul(prev,pose))
+                track.append(torch.matmul(prev, pose))
 
             track = torch.stack(track, dim=1)
             print(track.shape)
         return track
 
+    def homogeneous_transform(self, translation, rotation):
+        """
+        Generate a homogeneous transformation matrix from a translation vector
+        and a quaternion rotation.
+
+        Parameters:
+        - translation: 1D NumPy array or list of length 3 representing translation along x, y, and z axes.
+        - rotation: 1D NumPy array or list of length 4 representing a quaternion rotation.
+
+        Returns:
+        - 4x4 homogeneous transformation matrix.
+        """
+
+        # Ensure that the input vectors have the correct dimensions
+        translation = np.array(translation, dtype=float)
+        rotation = np.array(rotation, dtype=float)
+
+        if translation.shape != (3,) or rotation.shape != (4,):
+            raise ValueError(
+                "Translation vector must be of length 3, and rotation quaternion must be of length 4."
+            )
+
+        # Normalize the quaternion to ensure it is a unit quaternion
+        rotation /= np.linalg.norm(rotation)
+
+        # Create a rotation matrix from the quaternion using scipy's Rotation class
+        rotation_matrix = tf.Rotation.from_quat(rotation).as_matrix()
+
+        # Create a 4x4 homogeneous transformation matrix
+        homogeneous_matrix = np.eye(4)
+        homogeneous_matrix[:3, :3] = rotation_matrix
+        homogeneous_matrix[:3, 3] = translation
+
+        return homogeneous_matrix
+
     def process_data(self):
         self.get_logger().debug("Processing frames")
-        # self.get_logger().info("Zero (size): {}".format(self.data_set.__getitem__(0)))
-        # self.get_logger().info("One: (size): {}".format(self.data_set.__getitem__(1)))
-        # tmp = [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
-        # print("tmp: {}".format(tmp))
-        # print("tmp.len: ", tmp.__len__())
 
+        # Get displasment and rotation form ML model
         with torch.no_grad():
-            odom = self.model.forward(
+            pose_delta = self.model.forward(
                 [self.data_set.__getitem__(0)[0], self.data_set.__getitem__(1)[0]]
             )
-        
-        self.odom_matrix = self.to_transform_torch(odom[;,3;], odom[;,;3])
 
-        # self.tbro_odometrty[0] += float(odom[0][0])
-        # self.tbro_odometrty[1] += float(odom[0][1])
-        # self.tbro_odometrty[2] += float(odom[0][2])
-        # self.tbro_odometrty[3] += float(odom[0][3])
-        # self.tbro_odometrty[4] += float(odom[0][4])
-        # self.tbro_odometrty[5] += float(odom[0][5])
+        # print(f'[{float(pose_delta[0][0])}, {float(pose_delta[0][1])}, {float(pose_delta[0][2])}, {float(pose_delta[0][3])}, {float(pose_delta[0][4])}, {float(pose_delta[0][5])}]')
 
-        # print(f'[{float(odom[0][0])}, {float(odom[0][1])}, {float(odom[0][2])}, {float(odom[0][3])}, {float(odom[0][4])}, {float(odom[0][5])}]')
+        # Add delta pose to current pose
+        self.pose[0] += float(pose_delta[0][0])
+        self.pose[1] += float(pose_delta[0][1])
+        self.pose[2] += float(pose_delta[0][2])
+        self.pose[3] += float(pose_delta[0][3])
+        self.pose[4] += float(pose_delta[0][4])
+        self.pose[5] += float(pose_delta[0][5])
 
+        # convert pose to 4x1 metrix
+        position_body = self.pose[:3]
+        print("positon_body: ", position_body)
+        pose_body_frame = np.asmatrix(np.append(position_body, [1.0])).transpose()
+
+        # Generate 4x4 homogeneous transformation metrix
+        trasformation = self.pose[:3]
+        rotation = quaternion_from_euler(
+            float(self.pose[3]), float(self.pose[4]), float(self.pose[5])
+        )
+        rotation = np.asarray(rotation)
+        ht_matrix = self.homogeneous_transform(trasformation, rotation)
+
+        # apply transfoirmation
+        pose_world = ht_matrix * pose_body_frame
+
+        # Build odometry message
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.header.frame_id = "world"
         odom_msg.child_frame_id = "imu_link_enu"
-        odom_msg.pose.pose.position.x = self.tbro_odometrty[0]
-        odom_msg.pose.pose.position.y = self.tbro_odometrty[1]
-        odom_msg.pose.pose.position.z = self.tbro_odometrty[2]
-
-        quaternion_frame = quaternion_from_euler(
-            float(odom[0][3]), float(odom[0][4]), float(odom[0][5])
-        )
-
-        odom_msg.pose.pose.orientation.x = quaternion_frame[0]
-        odom_msg.pose.pose.orientation.y = quaternion_frame[1]
-        odom_msg.pose.pose.orientation.z = quaternion_frame[2]
-        odom_msg.pose.pose.orientation.w = quaternion_frame[3]
+        odom_msg.pose.pose.position.x = float(pose_world[0][0])
+        odom_msg.pose.pose.position.y = float(pose_world[1][0])
+        odom_msg.pose.pose.position.z = float(pose_world[2][0])
+        odom_msg.pose.pose.orientation.x = rotation[0]
+        odom_msg.pose.pose.orientation.y = rotation[1]
+        odom_msg.pose.pose.orientation.z = rotation[2]
+        odom_msg.pose.pose.orientation.w = rotation[3]
 
         print("Publishing pose: ", odom_msg.pose.pose)
-
         self.odometry_publisher.publish(odom_msg)
-        # print("image type: {}".format(type(self.data_set.__getitem__(0)[0])))
-
-        # loader = DataLoader(
-        #     self.data_set,
-        #     batch_size=self.args.batch_size,
-        #     shuffle=True,
-        #     num_workers=4,
-        #     drop_last=False,
-        # )
-
-        # for i, data in enumerate(loader):
-        #     self.get_logger().info("index, data: {},{}".format(i, data))
 
     def run_once(self):
         if self.init_flag:
