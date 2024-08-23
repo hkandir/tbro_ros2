@@ -196,6 +196,7 @@ class TbroSubscriber(Node):
 
         # print(f'[{float(pose_delta[0][0])}, {float(pose_delta[0][1])}, {float(pose_delta[0][2])}, {float(pose_delta[0][3])}, {float(pose_delta[0][4])}, {float(pose_delta[0][5])}]')
 
+        """ IS THIS CORRECT???"""
         # Add delta pose to current pose
         self.pose[0] += float(pose_delta[0][0])
         self.pose[1] += float(pose_delta[0][1])
@@ -206,8 +207,9 @@ class TbroSubscriber(Node):
 
         # convert pose to 4x1 metrix
         position_body = self.pose[:3]
-        print("positon_body: ", position_body)
+        print("position_body: ", position_body)
         pose_body_frame = np.asmatrix(np.append(position_body, [1.0])).transpose()
+        print("pose_body_frame: ", pose_body_frame)
 
         # Generate 4x4 homogeneous transformation metrix
         trasformation = self.pose[:3]
@@ -216,15 +218,17 @@ class TbroSubscriber(Node):
         )
         rotation = np.asarray(rotation)
         ht_matrix = self.homogeneous_transform(trasformation, rotation)
+        print("ht_matrix = ", ht_matrix)
 
         # apply transfoirmation
         pose_world = ht_matrix * pose_body_frame
+        print("pose_world = ", pose_world)
 
         # Build odometry message
         odom_msg = Odometry()
         odom_msg.header.stamp = self.get_clock().now().to_msg()
         odom_msg.header.frame_id = "world"
-        odom_msg.child_frame_id = "imu_link_enu"
+        odom_msg.child_frame_id = "tbro_enu"
         odom_msg.pose.pose.position.x = float(pose_world[0][0])
         odom_msg.pose.pose.position.y = float(pose_world[1][0])
         odom_msg.pose.pose.position.z = float(pose_world[2][0])
