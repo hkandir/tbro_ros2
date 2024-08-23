@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "tbro"
+package_name = "tbro_ros2"
 
 setup(
     name=package_name,
@@ -24,6 +24,6 @@ setup(
     license="Apache-2.0",
     tests_require=["pytest"],
     entry_points={
-        "console_scripts": ["tbro_node = tbro.tbro_node:main"],
+        "console_scripts": ["tbro_ros2_node = tbro_ros2.tbro_ros2_node:main"],
     },
 )
